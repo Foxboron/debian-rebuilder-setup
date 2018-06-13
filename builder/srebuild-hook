@@ -1,0 +1,161 @@
+#!/usr/bin/perl
+#
+# Copyright 2014 Johannes Schauer
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+
+use strict;
+use warnings;
+
+use Dpkg::Control;
+use Dpkg::Compression::FileHandle;
+use Dpkg::Deps;
+use File::Copy;
+
+sub none(&@) {
+    my $code = shift;
+    foreach (@_) {
+        return 0 if $code->();
+    }
+    return 1;
+}
+
+sub system_fatal {
+    my @args = @_;
+    print "srebuild: executing: @args\n";
+    my $retval = system @args;
+    $retval >>= 8;
+    if ($retval != 0) {
+        die "failed: @args";
+    }
+}
+
+sub parse_buildinfo {
+    my $buildinfo = shift;
+
+    my $fh = Dpkg::Compression::FileHandle->new(filename => $buildinfo);
+
+    my $cdata = Dpkg::Control->new(type => CTRL_INDEX_SRC);
+    if (not $cdata->parse($fh, $buildinfo)) {
+        die "cannot parse"
+    }
+    my $arch = $cdata->{"Build-Architecture"};
+    if (not defined($arch)) {
+        die "need Build-Architecture field"
+    }
+    my $environ = $cdata->{"Installed-Build-Depends"};
+    if (not defined($environ)) {
+        die "need Build-Environment field"
+    }
+    close $fh;
+
+    $environ =~ s/^\s+|\s+$//g;
+    my @environ = ();
+    foreach my $dep (split(/\s*,\s*/m, $environ)) {
+        my $pkg = Dpkg::Deps::Simple->new($dep);
+        if (not defined($pkg->{package})) {
+            die "name undefined";
+        }
+        if (defined($pkg->{relation})) {
+            if ($pkg->{relation} ne "=") {
+                die "wrong relation";
+            }
+            if (not defined($pkg->{version})) {
+                die "version undefined"
+            }
+        } else {
+            die "no version";
+        }
+        push @environ, { name => $pkg->{package},
+                         architecture => ( $pkg->{archqual} || $arch ),
+                         version => $pkg->{version}
+                       };
+    }
+
+    return $arch, @environ
+}
+
+sub chroot_setup {
+    my $buildinfo = shift;
+    my @timestamps = @_;
+
+    my ($arch, @environ) = parse_buildinfo $buildinfo;
+
+    @environ = map { "$_->{name}:$_->{architecture}=$_->{version}" } @environ;
+
+    my $fh;
+    open $fh, '>', '/etc/apt/apt.conf.d/80no-check-valid-until';
+    print $fh 'Acquire::Check-Valid-Until "false";';
+    close $fh;
+
+    open $fh, '>', '/etc/apt/apt.conf.d/99no-install-recommends';
+    print $fh 'APT::Install-Recommends "0";';
+    close $fh;
+
+    my $debug_content = <<'END_MSG';
+Debug {
+  pkgAutoRemove "true";
+  pkgDepCache {
+    AutoInstall "true";
+    Marker      "true";
+  };
+  pkgProblemResolver "true";
+};
+END_MSG
+    open $fh, '>', '/etc/apt/apt.conf.d/11debug-apt';
+    print $fh $debug_content;
+    close $fh;
+
+    system_fatal "apt-get", "update";
+    system_fatal "apt-get", "--yes", "--allow-downgrades", "--allow-remove-essential", "install", @environ;
+}
+
+sub starting_build {
+    my $buildinfo = shift;
+
+    my ($arch, @environ) = parse_buildinfo $buildinfo;
+
+    @environ = map { "$_->{name}:$_->{architecture}=$_->{version}" } @environ;
+
+    open my $fh, '-|', 'dpkg-query --show --showformat \'${Package}:${Architecture}=${Version}\n\'';
+    my @installed = ();
+    while (my $line = <$fh>) {
+        chomp $line;
+        # make arch:all packages build-arch packages
+        $line =~ s/:all=/:$arch=/;
+        push @installed, $line;
+    }
+
+    foreach my $dep (@environ) {
+        if (none {$_ eq $dep} @installed) {
+            die "require $dep to be installed but it is not";
+        }
+    }
+    print "srebuild: all packages are in the correct version\n"
+}
+
+my $mode = shift @ARGV;
+if (not defined($mode)) {
+    die "need mode argument";
+}
+
+my $buildinfo = shift @ARGV;
+if (not defined($buildinfo)) {
+    die "need buildinfo filename";
+}
+
+if ($mode eq "chroot-setup") {
+    chroot_setup $buildinfo;
+} elsif ($mode eq "starting-build") {
+    starting_build $buildinfo;
+} else {
+    die "invalid mode: $mode";
+}
