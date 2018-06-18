@@ -167,12 +167,14 @@ sub get_first_seen {
     my $json_text = fetch_json_page($url);
 
     unless ( $json_text && @{ $json_text->{result} } ) {
-        die "Unable to retrieve information for $pkg=$ver from $url.\n";
+        print STDERR "Unable to retrieve information for $pkg=$ver from $url.\n";
+        return;
     }
     my $hash = undef;
     if ( scalar @{ $json_text->{result} } == 1 ) {
         if ( @{ $json_text->{result} }[0]->{architecture} ne "all" ) {
-            die "expected arch:all\n";
+            print STDERR "expected arch:all\n";
+            return;
         }
         $hash = ${ $json_text->{result} }[0]->{hash};
     }
@@ -185,12 +187,14 @@ sub get_first_seen {
         }
     }
     if ( not defined($hash) ) {
-        die "cannot find architecture for $pkg=$ver\n";
+        print STDERR "cannot find architecture for $pkg=$ver\n";
+        return;
     }
     my @first_seen = grep { $_->{archive_name} eq $archive }
       @{ $json_text->{fileinfo}->{$hash} };
     if ( scalar @first_seen != 1 ) {
-        die "more than one package with the same hash\n";
+        print STDERR "more than one package with the same hash\n";
+        return;
     }
     @first_seen = map { $_->{first_seen} } @first_seen;
     return $first_seen[0];
@@ -215,13 +219,25 @@ sub setup_chroot_sbuild {
     my $first_seen =
       get_first_seen( $archive, $suite, $area, $arch, $src_pkg, $src_ver );
 
+    my $base_repo;
+
+    # If first_seen is defined, then the archive exists in some snapshot
+    # If not, we assume that it is a very new snapshot in sid.
+    # NOTE: This might fail in extremely rare edge cases (package neither in a
+    #       snapshot nor in sid)
+    if ( defined( $first_seen ) ) {
+        $base_repo = "http://snapshot.debian.org/archive/$archive/$first_seen/";
+    } else {
+        $base_repo = "http://deb.debian.org/$archive/";
+    }
+
     # Setup chroot
     say STDOUT "Extracting chroot";
     system_fatal "mkdir", "--parents", "$build_root";
     system_fatal "sbuild-createchroot", "--include=eatmydata,ccache,gnupg",
       "--alias=$bn_build_root", "--chroot-prefix=sid-$bn_build_root", @repos,
       "sid", "$build_root",
-      "http://snapshot.debian.org/archive/debian/$first_seen/";
+      "$base_repo";
     say STDOUT "Done extracting chroot";
     return $build_root;
 }
@@ -245,6 +261,7 @@ sub generate_sources {
         my $first_seen =
           get_first_seen( $archive, $suite, $area, $arch, $pkg->{name},
             $pkg->{version} );
+        die "" unless defined $first_seen;
         push @timestamps, $dtparser->parse_datetime($first_seen);
         print "Done $pkg->{name}=$pkg->{version}\n";
     }
