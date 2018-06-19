@@ -18,17 +18,12 @@
 # Current limitations:
 #
 #  - it will only search for results in Debian Sid, main
-#  - it will start with a wheezy chroot and not yet select a base chroot
-#    automatically by using the base-files version as a guide
-#  - it is limited to finding a single snapshot.d.o timestamp and will error
-#    out if not all package versions can be found in a single timestamp
-#  - it does not support binNMUs (in that case it must respect the additional
-#    changelog entry in the Changes field in the .buildinfo)
 
 use strict;
 use warnings;
 
 use Archive::Tar;
+use Cwd qw(abs_path);
 use Dpkg::Control;
 use Dpkg::Compression::FileHandle;
 use Dpkg::Deps;
@@ -38,9 +33,9 @@ use DateTime::Format::Strptime;
 use Compress::Zlib;
 use File::Basename;
 use File::Copy "cp";
+use File::Temp qw(tempdir);
 use Digest::SHA qw(sha256_hex);
 use List::Util qw(first);
-use Cwd qw/abs_path/;
 
 eval {
     require LWP::Simple;
@@ -234,9 +229,9 @@ sub setup_chroot_sbuild {
     # Setup chroot
     say STDOUT "Extracting chroot";
     system_fatal "mkdir", "--parents", "$build_root";
-    system_fatal "sbuild-createchroot", "--include=eatmydata,ccache,gnupg",
-      "--alias=$bn_build_root", "--chroot-prefix=sid-$bn_build_root", @repos,
-      "sid", "$build_root",
+    system_fatal "sbuild-createchroot",
+      "--alias=$bn_build_root", "--chroot-prefix=$suite-$bn_build_root", @repos,
+      "$suite", "$build_root",
       "$base_repo";
     say STDOUT "Done extracting chroot";
     return $build_root;
@@ -286,6 +281,11 @@ my $buildinfo = shift @ARGV;
 if ( not defined($buildinfo) ) {
     die "need buildinfo filename";
 }
+$buildinfo = abs_path($buildinfo);
+
+my $temp_dir = tempdir(CLEANUP => 1);
+cp( "./srebuild-hook", "$temp_dir/srebuild-hook" );
+chdir $temp_dir;
 
 my ( $cdata, $arch, $checksums, @depends ) = parse_buildinfo $buildinfo;
 
@@ -329,7 +329,6 @@ if ( not defined($build_path) ) {
 my @timestamps =
   generate_sources( $archive, $suite, $area, $arch, $builddate, @depends );
 
-# my @timestamps = ();
 my $build_root =
   setup_chroot_sbuild( $archive, $suite, $area, $arch, $src_pkg, $src_ver,
     @timestamps );
@@ -341,7 +340,6 @@ my $bn_build_root = basename $build_root;
 
 # calculate absolute path because sbuild changes directories and the user
 # should not be required to specify the absolute path on the command line
-$buildinfo = abs_path($buildinfo);
 
 say STDOUT "starting prebuild";
 
@@ -375,3 +373,7 @@ say STDOUT "check new checksums";
 check_checksums $checksums;
 
 say STDOUT "everything is okay!";
+
+unlink glob "/etc/schroot/chroot.d/$suite-$bn_build_root-$arch-sbuild";
+
+say STDOUT "removing schroot entry"
