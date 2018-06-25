@@ -26,8 +26,3 @@
       apt:
         name: libjson-perl
         state: latest
-
-    - name: Set up base sbuild chroot
-      command: sbuild-createchroot --include=eatmydata,ccache,gnupg --make-sbuild-tarball=/src/chroot/sid-amd64-sbuild.tar.gz sid `mktemp -d` http://deb.debian.org/debian
-      args:
-        creates: /srv/chroot/sid-amd64-sbuild.tar.gz
