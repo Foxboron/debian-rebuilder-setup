@@ -103,6 +103,18 @@ sub check_checksums {
     }
 }
 
+sub generate_in_toto_metadata {
+    my $checksums = shift;
+
+    my @files = $checksums->get_files();
+
+    system_fatal "/usr/local/bin/in-toto-run", "--step-name=rebuild", "--gpg", "--products", @files,
+        "--no-command";
+
+    my $lnk_file = glob "*.lnk";
+    return $lnk_file;
+}
+
 sub parse_buildinfo {
     my $buildinfo = shift;
 
@@ -353,6 +365,7 @@ say STDOUT "starting sbuild";
 
 say STDOUT "resetting environment";
 
+my %pres_env = %ENV;
 undef %ENV;
 foreach my $env (@environ) {
     $env =~ /^(.*)="(.*)"$/;
@@ -368,9 +381,18 @@ system_fatal "sbuild", "--arch=$arch", "--dist=$suite",
 "--starting-build-commands=/tmp/srebuild-hook starting-build /tmp/$bn_buildinfo",
   "--chroot=$bn_build_root", "${src_pkg}_${src_ver}";
 
+say STDOUT "restoring environment";
+%ENV = %pres_env;
+
 say STDOUT "check new checksums";
 
+system_fatal "ls";
+
 check_checksums $checksums;
+
+my $lnk = generate_in_toto_metadata $checksums;
+
+system_fatal "cat", $lnk;
 
 say STDOUT "everything is okay!";
 
