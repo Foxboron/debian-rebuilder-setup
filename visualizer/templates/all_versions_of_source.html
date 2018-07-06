@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title> {{ results[0][0] }} </title>
+  </head>
+  <body>
+    <table>
+      <tr>
+        <th> Version </th>
+        <th> Timestamp </th>
+        <th> Buildinfo </th>
+        <th> in-toto metadata </th>
+      </tr>
+      {% for result in results %}
+      <tr>
+        <td> {{ result[1] }} </td>
+        <td> {{ result[2] }} </td>
+        <td> <a href="/sources/{{ result[0] }}/{{ result[1] }}/buildinfo"> Link </a> </td>
+        <td> <a href="/sources/{{ result[0] }}/{{ result[1] }}/metadata"> Link </a> </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+</html>
+
