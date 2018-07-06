@@ -111,8 +111,11 @@ sub generate_in_toto_metadata {
     system_fatal "/usr/local/bin/in-toto-run", "--step-name=rebuild", "--gpg", "--products", @files,
         "--no-command";
 
-    my $lnk_file = glob "*.lnk";
-    return $lnk_file;
+    system_fatal "ls";
+
+    my $lnk_file = (glob( "./rebuild.*.link" ))[0];
+    die "could not find in-toto link metadata" unless defined ( $lnk_file );
+    return abs_path( $lnk_file );
 }
 
 sub parse_buildinfo {
@@ -208,7 +211,7 @@ sub get_first_seen {
 }
 
 sub setup_chroot_sbuild {
-    my $archive = shift;
+    my $base_repo = shift;
     my $suite   = shift;
     my $area    = shift;
     my $arch    = shift;
@@ -223,21 +226,6 @@ sub setup_chroot_sbuild {
 
     @repos = map { "--extra-repository=$_" } @repos;
 
-    my $first_seen =
-      get_first_seen( $archive, $suite, $area, $arch, $src_pkg, $src_ver );
-
-    my $base_repo;
-
-    # If first_seen is defined, then the archive exists in some snapshot
-    # If not, we assume that it is a very new snapshot in sid.
-    # NOTE: This might fail in extremely rare edge cases (package neither in a
-    #       snapshot nor in sid)
-    if ( defined( $first_seen ) ) {
-        $base_repo = "http://snapshot.debian.org/archive/$archive/$first_seen/";
-    } else {
-        $base_repo = "http://deb.debian.org/$archive/";
-    }
-
     # Setup chroot
     say STDOUT "Extracting chroot";
     system_fatal "mkdir", "--parents", "$build_root";
@@ -247,6 +235,47 @@ sub setup_chroot_sbuild {
       "$base_repo";
     say STDOUT "Done extracting chroot";
     return $build_root;
+}
+
+sub filter_depends {
+    my $base_repo = shift(@_);
+    my $suite = shift(@_);
+    my $area = shift(@_);
+    my $arch = shift(@_);
+    my %reqpkgs = ();
+    foreach my $pkg (@_) {
+        $reqpkgs{"$pkg->{name}:$pkg->{architecture}=$pkg->{version}"} = $pkg;
+    }
+    my $snapshot_url = "$base_repo/dists/$suite/$area/binary-$arch/Packages.gz";
+    my $response = LWP::Simple::get($snapshot_url);
+    my $dest = Compress::Zlib::memGunzip($response)
+        or die "Cannot uncompress\n";
+
+    print STDERR "process Packages.gz\n";
+
+    open my $fh, '<', \$dest;
+
+    while (1) {
+        my $cdata = Dpkg::Control->new(type => CTRL_INDEX_PKG);
+        last if not $cdata->parse($fh, "Packages.gz");
+        my $pkgname = $cdata->{"Package"};
+        next if not defined($pkgname);
+        my $pkgver = $cdata->{"Version"};
+        my $pkgarch;
+        if ($cdata->{"Architecture"} eq "all") {
+            $pkgarch = $arch;
+        } else {
+            $pkgarch = $cdata->{"Architecture"};
+        }
+        my $key = "$pkgname:$pkgarch=$pkgver";
+        if (exists $reqpkgs{$key}) {
+            delete $reqpkgs{$key};
+        }
+    }
+    close $fh;
+
+    my @depends = values %reqpkgs;
+    return @depends;
 }
 
 sub generate_sources {
@@ -338,12 +367,28 @@ if ( not defined($build_path) ) {
     die "need Build-Path field";
 }
 
+my $first_seen =
+    get_first_seen( $archive, $suite, $area, $arch, $src_pkg, $src_ver );
+
+my $base_repo;
+
+# If first_seen is defined, then the archive exists in some snapshot
+# If not, we assume that it is a very new snapshot in sid.
+# NOTE: This might fail in extremely rare edge cases (package neither in a
+#       snapshot nor in sid)
+if ( defined( $first_seen ) ) {
+    $base_repo = "http://snapshot.debian.org/archive/$archive/$first_seen/";
+} else {
+    $base_repo = "http://deb.debian.org/$archive/";
+}
+
+@depends = filter_depends ( $base_repo, $suite, $area, $arch, @depends );
+
 my @timestamps =
   generate_sources( $archive, $suite, $area, $arch, $builddate, @depends );
 
 my $build_root =
-  setup_chroot_sbuild( $archive, $suite, $area, $arch, $src_pkg, $src_ver,
-    @timestamps );
+  setup_chroot_sbuild( $base_repo, $suite, $area, $arch, $src_pkg, $src_ver, @timestamps );
 
 print "architecture = $arch\n";
 
@@ -386,16 +431,26 @@ say STDOUT "restoring environment";
 
 say STDOUT "check new checksums";
 
-system_fatal "ls";
-
 check_checksums $checksums;
 
 my $lnk = generate_in_toto_metadata $checksums;
+my $buildinfo_file = abs_path( (glob( "./*.buildinfo" ))[0] );
+
+system_fatal "gpg", "--clearsign", $buildinfo_file;
+
+system_fatal "ls";
+$buildinfo_file = abs_path( (glob( "./*.asc" ))[0] );
+
+say STDOUT $lnk;
+say STDOUT $buildinfo_file;
 
 system_fatal "cat", $lnk;
+system_fatal "cat", $buildinfo_file;
+
+system_fatal "curl", "-F", "metadata=\@$lnk", "-F", "buildinfo=\@$buildinfo_file", "http://ptsv2.com/t/4o082-1530243363/post";
 
 say STDOUT "everything is okay!";
 
-unlink glob "/etc/schroot/chroot.d/$suite-$bn_build_root-$arch-sbuild";
+unlink glob "/etc/schroot/chroot.d/$suite-$bn_build_root-$arch-sbuild-*";
 
 say STDOUT "removing schroot entry"
