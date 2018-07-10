@@ -4,7 +4,7 @@ from sqlite3 import connect
 
 app = Flask(__name__)
 
-DIR = "/var/builds/"
+DIR = '/var/builds/'
 DATABASE = '/var/rebuilder.db'
 
 
@@ -51,7 +51,7 @@ def get_metadata(source, version):
     metadata = c.fetchone()
     if metadata is None:
         return ('Not Found', 404, {})
-    folder_name = "%s-%s" % (source, version)
+    folder_name = '%s-%s' % (source, version)
     directory = join(DIR, folder_name)
     content = open(join(directory, metadata[0])).read()
     return Response(content, mimetype='text/plain',
@@ -70,7 +70,7 @@ def get_buildinfo(source, version):
     buildinfo = c.fetchone()
     if buildinfo is None:
         return ('Not Found', 404, {})
-    folder_name = "%s-%s" % (source, version)
+    folder_name = '%s-%s' % (source, version)
     directory = join(DIR, folder_name)
     content = open(join(directory, buildinfo[0])).read()
     return Response(content, mimetype='text/plain',

@@ -7,7 +7,7 @@ from time import time
 
 app = Flask(__name__)
 
-DIR = "/var/builds/"
+DIR = '/var/builds/'
 DATABASE = '/var/rebuilder.db'
 
 
@@ -38,7 +38,7 @@ def new_build():
             if item[0] == 'Version':
                 version = item[1]
     buildinfo.seek(0)
-    folder_name = "%s-%s" % (source, version)
+    folder_name = '%s-%s' % (source, version)
     directory = join(DIR, folder_name)
     mkdir(directory)
     timestamp = time()
@@ -53,4 +53,4 @@ def new_build():
               )
 
     db.commit()
-    return "OK"
+    return 'OK'
