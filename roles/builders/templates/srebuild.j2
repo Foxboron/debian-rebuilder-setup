@@ -226,6 +226,7 @@ sub setup_chroot_sbuild {
 
     @repos = map { "--extra-repository=$_" } @repos;
 
+    unlink glob "/etc/schroot/chroot.d/$suite-$bn_build_root-$arch-sbuild-*";
     # Setup chroot
     say STDOUT "Extracting chroot";
     system_fatal "mkdir", "--parents", "$build_root";
@@ -325,7 +326,7 @@ if ( not defined($buildinfo) ) {
 $buildinfo = abs_path($buildinfo);
 
 my $temp_dir = tempdir(CLEANUP => 1);
-cp( "./srebuild-hook", "$temp_dir/srebuild-hook" );
+cp( "/usr/lib/srebuild-hook", "$temp_dir/srebuild-hook" );
 chdir $temp_dir;
 
 my ( $cdata, $arch, $checksums, @depends ) = parse_buildinfo $buildinfo;
@@ -403,8 +404,8 @@ say STDOUT "starting prebuild";
 system_fatal "mkdir", "--parent", "$build_root/tmp/";
 cp( $buildinfo,        "$build_root/tmp/$bn_buildinfo" );
 cp( $buildinfo,        "/tmp/$bn_buildinfo" );
-cp( "./srebuild-hook", "$build_root/tmp/srebuild-hook" );
-cp( "./srebuild-hook", "/tmp/srebuild-hook" );
+cp( "/usr/lib/srebuild-hook", "$build_root/tmp/srebuild-hook" );
+cp( "/usr/lib/srebuild-hook", "/tmp/srebuild-hook" );
 
 say STDOUT "starting sbuild";
 
@@ -447,7 +448,9 @@ say STDOUT $buildinfo_file;
 system_fatal "cat", $lnk;
 system_fatal "cat", $buildinfo_file;
 
-system_fatal "curl", "-F", "metadata=\@$lnk", "-F", "buildinfo=\@$buildinfo_file", "http://ptsv2.com/t/4o082-1530243363/post";
+{% for host in groups['visualizers'] %}
+  system_fatal "curl", "-F", "metadata=\@$lnk", "-F", "buildinfo=\@$buildinfo_file", "{{ hostvars[host]['ansible_default_ipv4']['address'] }}";
+{% endfor %}
 
 say STDOUT "everything is okay!";
 

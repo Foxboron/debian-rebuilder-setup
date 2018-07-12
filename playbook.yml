@@ -1,28 +1,34 @@
-- name: setup-reproducer
-  hosts: reproducer
+- name: Debugging Stuff (this is needed to obtain the ipv4 addresses once)
+  hosts: all
+  tasks:
+    - debug: var=hostvars[inventory_hostname]['ansible_default_ipv4']['address']
+
+- name: Setup Builders
+  hosts: builders
   remote_user: "{{ login_username }}"
   become: yes
   become_user: root
   become_method: sudo
+  vars_files:
+    - external_vars.yml
+  roles:
+    - builders
+    # The gpgkey generation role had to be disabled because it was taking a lot of time. I'm not sure we are supposed to do this.
+    # - { role: juju4.gpgkey_generate, gpg_user: "{{ build_gpg_user }}", gpg_realname: "{{ build_gpg_realname }}", gpg_useremail: "{{ build_gpg_email }}" , gpg_generator_user: "root" }
 
-  tasks:
-
-    - name: Install sbuild
+- name: Setup Visualizers
+  hosts: visualizers
+  remote_user: "{{ login_username }}"
+  become: yes
+  become_user: root
+  become_method: sudo
+  vars_files:
+    - external_vars.yml
+  pre_tasks:
+    - name: Install dirmngr for nginx
       apt:
-        name: sbuild
-        state: latest
+        name: "dirmngr"
+  roles:
+    - role: nginxinc.nginx
+    - visualizers
 
-    - name: Install perl datetime
-      apt:
-        name: libdatetime-format-strptime-perl
-        state: latest
-
-    - name: Install perl web abilities
-      apt:
-        name: libwww-perl
-        state: latest
-
-    - name: Install perl json
-      apt:
-        name: libjson-perl
-        state: latest

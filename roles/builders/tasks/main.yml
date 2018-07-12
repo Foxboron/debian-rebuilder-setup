@@ -1,0 +1,36 @@
+- name: Install all dependencies
+  apt:
+    name: "{{ item }}"
+  with_items:
+    - sbuild
+    - libdatetime-format-strptime-perl
+    - libwww-perl
+    - libjson-perl
+    - gnupg2
+    - curl
+    - python-pip
+
+- name: Install in-toto
+  pip:
+    name: "{{ item }}"
+  with_items:
+    - in-toto
+    - colorama
+
+- name: Copy files
+  copy:
+    src: srebuild-hook
+    dest: /usr/lib/srebuild-hook
+
+- name: Copy template
+  template:
+    src: srebuild.j2
+    dest: /usr/bin/srebuild
+
+- name: Set permissions
+  file:
+    path: "{{ item }}"
+    mode: 0755
+  with_items:
+    - /usr/bin/srebuild
+    - /usr/lib/srebuild-hook

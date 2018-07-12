@@ -1,0 +1,10 @@
+[Unit]
+Description=Gunicorn server for Visualizer
+
+[Service]
+WorkingDirectory=/var/visualizer
+Restart=on-failure
+ExecStart=/usr/local/bin/gunicorn --bind 127.0.0.1:8000 visualizer:app
+
+[Install]
+WantedBy=multi-user.target

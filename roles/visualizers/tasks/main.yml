@@ -1,0 +1,46 @@
+- name: Install pip
+  apt:
+    name: "{{ item }}"
+  with_items:
+    - python-pip
+    - sqlite3
+
+- name: Install Python dependencies
+  pip:
+    name: "{{ item }}"
+  with_items:
+    - flask
+    - gunicorn
+    - python-debian
+
+- name: Create necessary folders
+  file: path="{{ item }}" state=directory
+  with_items:
+    - /var/builds
+    - /var/accumulator
+    - /var/visualizer
+
+- name: Copy all files
+  copy: src={{ item.src }} dest={{ item.dest }}
+  with_items:
+    - { src: accumulator.py, dest: /var/accumulator/accumulator.py }
+    - { src: visualizer.py, dest: /var/visualizer/visualizer.py }
+    - { src: templates, dest: /var/visualizer/ }
+    - { src: schema.sql, dest: /var/schema.sql }
+
+- name: Generate DB
+  shell: sqlite3 /var/rebuilder.db < /var/schema.sql
+
+- name: Run accumulator
+  copy: src=gunicorn-accumulator.service dest=/etc/systemd/system/gunicorn-accumulator.service
+  notify:
+    - restart gunicorn-accumulator
+
+- name: Run visualizer
+  copy: src=gunicorn-visualizer.service dest=/etc/systemd/system/gunicorn-visualizer.service
+  notify:
+    - restart gunicorn-visualizer
+
+- name: Copy nginx config
+  copy: src=default.conf dest=/etc/nginx/conf.d/http/default.conf
+  notify: "(Handler: All OSs) Reload NGINX"

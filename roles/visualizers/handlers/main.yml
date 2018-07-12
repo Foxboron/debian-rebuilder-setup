@@ -1,0 +1,13 @@
+- name: restart gunicorn-accumulator
+  systemd:
+      name=gunicorn-accumulator
+      daemon_reload=yes
+      enabled=yes
+      state=restarted
+
+- name: restart gunicorn-visualizer
+  systemd:
+      name=gunicorn-visualizer
+      daemon_reload=yes
+      enabled=yes
+      state=restarted

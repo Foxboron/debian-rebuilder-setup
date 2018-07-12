@@ -1,0 +1,10 @@
+[Unit]
+Description=Gunicorn server for Accumulator
+
+[Service]
+WorkingDirectory=/var/accumulator
+Restart=on-failure
+ExecStart=/usr/local/bingunicorn --bind 127.0.0.1:4000 accumulator:app
+
+[Install]
+WantedBy=multi-user.target

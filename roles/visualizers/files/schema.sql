@@ -1,4 +1,4 @@
-CREATE TABLE BUILDS(
+CREATE TABLE IF NOT EXISTS BUILDS(
        source TEXT,
        version TEXT,
        timestamp INTEGER,

@@ -1,0 +1,7 @@
+---
+login_username: admin
+build_gpg_user: foo
+build_gpg_realname: "foo bar"
+build_gpg_email: "foo@localhost"
+main_template_enable: true
+http_template_enable: true
