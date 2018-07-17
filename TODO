@@ -1,9 +1,9 @@
 todo
 ----
-a readme file describing all of this here
-a scheduler, to detect+schedule packages in sid
-a builder to build those packages
-  using .buildinfo files fetched from buildinfo.debian.net (needs work server side too)
-a db to store the result
-a templating engine to turn these results into shiny HTML and json
-a deployment for all this on the server (using ansible)
+[ ] - a readme file describing all of this here
+[ ] - a scheduler, to detect+schedule packages in sid
+[x] - a builder to build those packages
+      using .buildinfo files fetched from buildinfo.debian.net (needs work server side too)
+[x] - a db to store the result
+[x] - a templating engine to turn these results into shiny HTML and json
+[-] - a deployment for all this on the server (using ansible)
