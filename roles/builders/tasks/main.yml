@@ -17,15 +17,20 @@
     - in-toto
     - colorama
 
-- name: Copy files
+- name: Copy srebuild
   copy:
-    src: srebuild-hook
+    src: ../../../builder/srebuild
+    dest: /usr/bin/srebuild
+
+- name: Copy srebuild-hook
+  copy:
+    src: ../../../builder/srebuild-hook
     dest: /usr/lib/srebuild-hook
 
 - name: Copy template
   template:
-    src: srebuild.j2
-    dest: /usr/bin/srebuild
+    src: srebuild-runner.j2
+    dest: /usr/bin/srebuild-runner
 
 - name: Set permissions
   file:
@@ -33,4 +38,5 @@
     mode: 0755
   with_items:
     - /usr/bin/srebuild
+    - /usr/bin/srebuild-runner
     - /usr/lib/srebuild-hook

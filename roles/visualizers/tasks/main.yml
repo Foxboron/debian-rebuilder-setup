@@ -23,10 +23,10 @@
 - name: Copy all files
   copy: src={{ item.src }} dest={{ item.dest }}
   with_items:
-    - { src: accumulator.py, dest: /var/accumulator/accumulator.py }
-    - { src: visualizer.py, dest: /var/visualizer/visualizer.py }
-    - { src: templates, dest: /var/visualizer/ }
-    - { src: schema.sql, dest: /var/schema.sql }
+    - { src: ../../../visualizer/accumulator.py, dest: /var/accumulator/accumulator.py }
+    - { src: ../../../visualizer/visualizer.py, dest: /var/visualizer/visualizer.py }
+    - { src: ../../../visualizer/templates, dest: /var/visualizer/ }
+    - { src: ../../../visualizer/schema.sql, dest: /var/schema.sql }
 
 - name: Generate DB
   shell: sqlite3 /var/rebuilder.db < /var/schema.sql

@@ -448,9 +448,9 @@ say STDOUT $buildinfo_file;
 system_fatal "cat", $lnk;
 system_fatal "cat", $buildinfo_file;
 
-{% for host in groups['visualizers'] %}
-  system_fatal "curl", "-F", "metadata=\@$lnk", "-F", "buildinfo=\@$buildinfo_file", "{{ hostvars[host]['ansible_default_ipv4']['address'] }}";
-{% endfor %}
+foreach my $visualizer (@ARGV) {
+  system_fatal "curl", "-F", "metadata=\@$lnk", "-F", "buildinfo=\@$buildinfo_file", "$visualizer";
+}
 
 say STDOUT "everything is okay!";
 
