@@ -5,14 +5,6 @@
     - python-pip
     - sqlite3
 
-- name: Install Python dependencies
-  pip:
-    name: "{{ item }}"
-  with_items:
-    - flask
-    - gunicorn
-    - python-debian
-
 - name: Create necessary folders
   file: path="{{ item }}" state=directory
   with_items:
@@ -25,11 +17,16 @@
   with_items:
     - { src: ../../../visualizer/accumulator.py, dest: /var/accumulator/accumulator.py }
     - { src: ../../../visualizer/visualizer.py, dest: /var/visualizer/visualizer.py }
+    - { src: ../../../visualizer/requirements.txt, dest: /var/requirements.txt }
     - { src: ../../../visualizer/templates, dest: /var/visualizer/ }
     - { src: ../../../visualizer/schema.sql, dest: /var/schema.sql }
 
 - name: Generate DB
   shell: sqlite3 /var/rebuilder.db < /var/schema.sql
+
+- name: Install Python dependencies
+  pip:
+     requirements: /var/requirements.txt
 
 - name: Run accumulator
   copy: src=gunicorn-accumulator.service dest=/etc/systemd/system/gunicorn-accumulator.service
